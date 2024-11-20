@@ -12,8 +12,10 @@ local BILLBOARD_SIZE = UDim2.new(0, 500, 0, 100)
 local MAINFRAME_SIZE = UDim2.new(1, 0, 1, 0)
 local OFFSET_SCALE_INCREMENT = 0.20
 
--- Tabela para rastrear os ESPs
+-- Tabelas para rastrear os ESPs e conexões
 local espInstances = {}
+local characterConnections = {}
+local renderSteppedConnections = {}
 
 -- FUNCTIONS
 -- Utility: Creates a UIScale instance and attaches it to the parent
@@ -295,12 +297,18 @@ local function rebuildLeaderboard()
     end
 end
 
--- Function to create or remove ESP for a player
+-- Function to update ESP
 local function updateESP(player)
     -- Remove o ESP existente se houver
     if espInstances[player] then
         espInstances[player]:Destroy()
         espInstances[player] = nil
+
+        -- Disconnect the RenderStepped connection if it exists
+        if renderSteppedConnections[player] then
+            renderSteppedConnections[player]:Disconnect()
+            renderSteppedConnections[player] = nil
+        end
     end
 
     -- Se o ESP estiver desativado, não cria um novo
@@ -308,8 +316,38 @@ local function updateESP(player)
         return
     end
 
+    -- Função para atualizar a saúde exibida na ESP (placa de identificação)
+    local function updateHealth(humanoid)
+        if humanoid then
+            local currentHealth = math.floor(humanoid.Health)
+            local maxHealth = math.floor(humanoid.MaxHealth)
+
+            local healthLabel = espInstances[player]:FindFirstChild("MainFrame"):FindFirstChild("TertiaryFrame"):FindFirstChild("Health")
+            local healthPercentageLabel = espInstances[player]:FindFirstChild("MainFrame"):FindFirstChild("TertiaryFrame"):FindFirstChild("HealthPercentage")
+
+            if healthLabel then
+                healthLabel.Text = string.format("[%d/%d]", currentHealth, maxHealth)
+            end
+            if healthPercentageLabel then
+                healthPercentageLabel.Text = string.format("[%d%%]", (currentHealth / maxHealth) * 100)
+            end
+        end
+    end
+
+
+
     -- Handler for when a character is added to the player
     local function onCharacterAdded(character)
+        -- Disconnect existing connections if any
+        if characterConnections[player] then
+            for _, connection in pairs(characterConnections[player]) do
+                connection:Disconnect()
+            end
+        end
+
+        -- Create new connections for the added character
+        characterConnections[player] = {}
+
         local head = character:FindFirstChild("Head") or character:WaitForChild("Head", 5)
         if not head then return end
 
@@ -383,25 +421,21 @@ local function updateESP(player)
         local healthLabel = createTextLabel("Health", "[0/100]", UDim2.new(0.1, 0, 1, 0), tertiaryFrame, Color3.fromRGB(255, 255, 255))
         local healthPercentageLabel = createTextLabel("HealthPercentage", "[100%]", UDim2.new(0.1, 0, 1, 0), tertiaryFrame, Color3.fromRGB(255, 255, 255))
 
-        -- Updates the health text dynamically
-        local function updateHealth(humanoid)
-            if humanoid then
-                local currentHealth = math.floor(humanoid.Health)
-                local maxHealth = math.floor(humanoid.MaxHealth)
-                healthLabel.Text = string.format("[%d/%d]", currentHealth, maxHealth)
-                healthPercentageLabel.Text = string.format("[%d%%]", (currentHealth / maxHealth) * 100)
-            end
-        end
 
         -- Dynamic Updates for Health and Distance
         local humanoid = character:FindFirstChildOfClass("Humanoid")
         if humanoid then
-            humanoid:GetPropertyChangedSignal("Health"):Connect(function() updateHealth(humanoid) end)
-            humanoid:GetPropertyChangedSignal("MaxHealth"):Connect(function() updateHealth(humanoid) end)
+            table.insert(characterConnections[player], humanoid:GetPropertyChangedSignal("Health"):Connect(function()
+                updateHealth(humanoid)
+            end))
+            table.insert(characterConnections[player], humanoid:GetPropertyChangedSignal("MaxHealth"):Connect(function()
+                updateHealth(humanoid)
+            end))
             updateHealth(humanoid)
         end
 
-        RunService.RenderStepped:Connect(function()
+        -- RenderStepped to track distance
+        renderSteppedConnections[player] = RunService.RenderStepped:Connect(function()
             if head:IsDescendantOf(workspace) then
                 local distance = math.floor((Camera.CFrame.Position - head.Position).magnitude)
                 local formattedText = string.format("[%03d]", distance)
@@ -415,7 +449,12 @@ local function updateESP(player)
     if player.Character then
         onCharacterAdded(player.Character)
     end
-    player.CharacterAdded:Connect(onCharacterAdded)
+
+    if not characterConnections[player] then
+        characterConnections[player] = {}
+    end
+
+    table.insert(characterConnections[player], player.CharacterAdded:Connect(onCharacterAdded))
 end
 
 -- Função para remover todos os ESPs
@@ -424,6 +463,12 @@ local function removeAllESPs()
         if esp then
             esp:Destroy()
             espInstances[player] = nil
+        end
+
+        -- Disconnect RenderStepped connections
+        if renderSteppedConnections[player] then
+            renderSteppedConnections[player]:Disconnect()
+            renderSteppedConnections[player] = nil
         end
     end
 end
@@ -462,26 +507,25 @@ local function setupUI()
             espInstances[player]:Destroy()
             espInstances[player] = nil
         end
+
+        -- Disconnect character-related connections
+        if characterConnections[player] then
+            for _, connection in pairs(characterConnections[player]) do
+                connection:Disconnect()
+            end
+            characterConnections[player] = nil
+        end
+
+        -- Disconnect RenderStepped connections
+        if renderSteppedConnections[player] then
+            renderSteppedConnections[player]:Disconnect()
+            renderSteppedConnections[player] = nil
+        end
+
         rebuildLeaderboard()
         -- Reset observedPlayer if it was the removed player
         if observedPlayer == player then
             observedPlayer = nil
-        end
-    end)
-
-    -- Monitor changes to getgenv().ESP
-    RunService.RenderStepped:Connect(function()
-        -- Check if ESP is enabled or disabled
-        if getgenv().ESP then
-            -- Ensure ESPs are created for all players
-            for _, player in ipairs(Players:GetPlayers()) do
-                if player ~= Players.LocalPlayer and not espInstances[player] then
-                    updateESP(player)
-                end
-            end
-        else
-            -- Remove all existing ESPs
-            removeAllESPs()
         end
     end)
 end
@@ -623,10 +667,20 @@ toggleButton.MouseButton1Click:Connect(function()
         print("ESP Enabled")
         toggleButton.Text = "ON"
         toggleButton.TextColor3 = Color3.fromRGB(0, 255, 0)
+
+        -- Ensure ESPs are created for all players
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= Players.LocalPlayer then
+                updateESP(player)
+            end
+        end
     else
         print("ESP Disabled")
         toggleButton.Text = "OFF"
         toggleButton.TextColor3 = Color3.fromRGB(255, 0, 0)
+
+        -- Remove all existing ESPs
+        removeAllESPs()
     end
 end)
 
