@@ -456,10 +456,14 @@ local function setupUI()
     -- Function to handle initial setup for existing players
     local function initializePlayers()
         for _, player in ipairs(Players:GetPlayers()) do
-            -- Create the ESP for the player
             if player ~= Players.LocalPlayer then
                 updateESP(player)
             end
+            player.CharacterAdded:Connect(function(character)
+                if getgenv().ESP then
+					updateESP(player)
+				end
+            end)
         end
     end
 
