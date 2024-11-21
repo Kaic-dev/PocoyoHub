@@ -111,7 +111,7 @@ local function getEdict(player)
     if not backpack then return "None" end
 
     local edictItems = {
-        ["Seer"] = {"Intent", "ObserveBlock"},
+        ["Seer"] = {"Intent"},
         ["Healer"] = {"Mederi"},
         ["Blademaster"] = {"Verto"}
     }
