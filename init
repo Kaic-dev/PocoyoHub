@@ -534,6 +534,11 @@ mainFrame.Size = UDim2.new(0.5, 0, 0.5, 0)
 mainFrame.Name = "MainFrame"
 mainFrame.Parent = screenGui
 
+local mainFrame_UIAspect = Instance.new("UIAspectRatioConstraint")
+mainFrame_UIAspect.AspectRatio = 1.858
+mainFrame_UIAspect.AspectType = Enum.AspectType.FitWithinMaxSize
+mainFrame_UIAspect.Parent = mainFrame
+
 -- Background
 local background = Instance.new("Frame")
 background.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -573,6 +578,7 @@ espButton.BackgroundColor3 = Color3.fromRGB(21, 255, 255)
 espButton.Size = UDim2.new(0.1, 0, 1, 0)
 espButton.Font = Enum.Font.SourceSansBold
 espButton.Text = "ESP"
+espButton.TextSize = 14
 espButton.TextStrokeTransparency = 0.5
 espButton.Parent = buttonsFrame
 
@@ -593,23 +599,26 @@ toggleFrame.Parent = espFrame
 -- ESP Text Label
 local espLabel = Instance.new("TextLabel")
 espLabel.BackgroundTransparency = 1
-espLabel.Size = UDim2.new(0.5, 0, 1, 0)
+espLabel.Size = UDim2.new(1, 0, 1, 0)
 espLabel.Font = Enum.Font.SourceSansBold
-espLabel.Text = "ESP Status"
+espLabel.Text = "ESP"
+espLabel.TextSize = 14
 espLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 espLabel.TextXAlignment = Enum.TextXAlignment.Left
 espLabel.Parent = toggleFrame
 
 -- Toggle Button (ON/OFF)
 local toggleButton = Instance.new("TextButton")
-toggleButton.BackgroundColor3 = Color3.fromRGB(76, 76, 76)
-toggleButton.Size = UDim2.new(0.4, 0, 1, 0)
-toggleButton.Position = UDim2.new(0.6, 0, 0, 0)
+toggleButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+toggleButton.BackgroundTransparency = 1
+toggleButton.Size = UDim2.new(1, 0, 1, 0)
 toggleButton.Font = Enum.Font.SourceSansBold
 toggleButton.Text = "OFF"
+toggleButton.TextSize = 14
 toggleButton.TextColor3 = Color3.fromRGB(255, 0, 0)
-toggleButton.TextStrokeTransparency = 0.5
+toggleButton.TextStrokeTransparency = 1
 toggleButton.Name = "ToggleButton"
+toggleButton.TextXAlignment = Enum.TextXAlignment.Right
 toggleButton.Parent = toggleFrame
 
 -- UI Layout
