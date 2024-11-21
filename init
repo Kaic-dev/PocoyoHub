@@ -268,27 +268,41 @@ local function rebuildLeaderboard()
         end)
 
         -- Funcionalidade de observação (clique com o botão direito)
-        PlayerLabel.MouseButton2Click:Connect(function()
-            if observedPlayer == player then
-                -- Parar de observar
-                observedPlayer = nil
-                Camera.CameraType = Enum.CameraType.Custom
-                Camera.CameraSubject = Players.LocalPlayer.Character:FindFirstChild("Humanoid")
-                print("Stopped spectating:", player.Name)
-                updatePlayerLabelAppearance(player, PlayerLabel)
-            else
-                -- Reseta a observação anterior
-                resetPreviousObservation(scrollingFrame)
+		PlayerLabel.MouseButton2Click:Connect(function()
+			if observedPlayer == player then
+				-- Parar de observar
+				observedPlayer = nil
+				Camera.CameraType = Enum.CameraType.Custom
 
-                -- Define o novo jogador observado
-                observedPlayer = player
-                Camera.CameraType = Enum.CameraType.Follow
-                Camera.CameraSubject = player.Character:FindFirstChild("Humanoid")
-                print("Now spectating:", player.Name)
-                updatePlayerLabelAppearance(player, PlayerLabel)
-            end
-        end)
-    end
+				local localPlayerHumanoid = Players.LocalPlayer.Character and Players.LocalPlayer.Character:FindFirstChild("Humanoid")
+				if localPlayerHumanoid then
+					Camera.CameraSubject = localPlayerHumanoid
+				else
+					print("[DEBUG] LocalPlayer's Humanoid not found. CameraSubject not set.")
+				end
+
+				print("Stopped spectating:", player.Name)
+				updatePlayerLabelAppearance(player, PlayerLabel)
+			else
+				-- Reseta a observação anterior
+				resetPreviousObservation(scrollingFrame)
+
+				-- Verifica se o Character do jogador a ser observado existe
+				if not player.Character or not player.Character:FindFirstChild("Humanoid") then
+					print(string.format("[DEBUG] Cannot spectate %s: Character or Humanoid not found.", player.Name))
+					return
+				end
+
+				-- Define o novo jogador observado
+				observedPlayer = player
+				Camera.CameraType = Enum.CameraType.Follow
+				Camera.CameraSubject = player.Character:FindFirstChild("Humanoid")
+
+				print("Now spectating:", player.Name)
+				updatePlayerLabelAppearance(player, PlayerLabel)
+			end
+		end)
+	end
 
     -- Atualiza o CanvasSize do ScrollingFrame
     scrollingFrame.CanvasSize = UDim2.new(0, 0, 0, #players * 20)
@@ -325,31 +339,41 @@ end
 RunService.RenderStepped:Connect(updateAllESP)
 
 local function updateESP(player)
-	local function updateHealth(humanoid, healthLabel, healthPercentageLabel)
-		local health = humanoid.Health
-		local maxHealth = humanoid.MaxHealth
-		healthLabel.Text = string.format("[%d/%d]", math.floor(health), math.floor(maxHealth))
-		healthPercentageLabel.Text = string.format("[%d%%]", math.floor((health / maxHealth) * 100))
-	end
-	
+    print(string.format("[DEBUG] Starting updateESP for player: %s", player.Name))
+
+    local function updateHealth(humanoid, healthLabel, healthPercentageLabel)
+        local health = humanoid.Health or 0
+        local maxHealth = humanoid.MaxHealth or 1 -- Prevent division by zero
+        healthLabel.Text = string.format("[%d/%d]", math.floor(health), math.floor(maxHealth))
+        healthPercentageLabel.Text = string.format("[%d%%]", math.floor((health / maxHealth) * 100))
+    end
 
     -- Remove ESP existente, se houver
     if espInstances[player] then
+        print(string.format("[DEBUG] Removing existing ESP for player: %s", player.Name))
         espInstances[player]:Destroy()
         espInstances[player] = nil
     end
 
     -- Verifica se o ESP está ativado
     if not getgenv().ESP then
+        print("[DEBUG] ESP is disabled globally. Exiting updateESP.")
         return
     end
 
-    -- Verifica se o jogador possui um Character e Head
-    if not (player.Character and player.Character:FindFirstChild("Head")) then
+    -- Aguarda o Character e o Head estarem disponíveis
+    if not player.Character then
+        print(string.format("[DEBUG] Player %s has no character. Waiting for CharacterAdded event...", player.Name))
+        player.CharacterAdded:Wait()
+    end
+
+    local head = player.Character:WaitForChild("Head", 5)
+    if not head then
+        print(string.format("[DEBUG] Player %s's character has no 'Head'. Aborting ESP creation.", player.Name))
         return
     end
 
-    local head = player.Character.Head
+    print(string.format("[DEBUG] Creating ESP for player: %s", player.Name))
 
     -- Cria o BillboardGui
     local billboard = Instance.new("BillboardGui")
@@ -389,8 +413,8 @@ local function updateESP(player)
     setupUIListLayout(secondaryFrame)
 
     -- Nome do Rogue e Edict
-    createTextLabel("RogueName", string.format("[%s]", getRogueName(player)), UDim2.new(0.2, 0, 1, 0), secondaryFrame, Color3.fromRGB(255, 255, 255))
-    createTextLabel("Edict", string.format("[%s]", getEdict(player)), UDim2.new(0.1, 0, 1, 0), secondaryFrame, Color3.fromRGB(255, 255, 255))
+    createTextLabel("RogueName", string.format("[%s]", getRogueName(player) or "Unknown"), UDim2.new(0.2, 0, 1, 0), secondaryFrame, Color3.fromRGB(255, 255, 255))
+    createTextLabel("Edict", string.format("[%s]", getEdict(player) or "None"), UDim2.new(0.1, 0, 1, 0), secondaryFrame, Color3.fromRGB(255, 255, 255))
 
     -- Frame Terciário
     local tertiaryFrame = Instance.new("Frame")
@@ -411,34 +435,50 @@ local function updateESP(player)
     -- Conecta sinais ao humanoide
     local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
     if humanoid then
-        humanoid:GetPropertyChangedSignal("Health"):Connect(function()
+
+        -- Desconecta conexões antigas
+        if characterConnections[player] then
+            for _, connection in pairs(characterConnections[player]) do
+                connection:Disconnect()
+            end
+        end
+        characterConnections[player] = {}
+
+        -- Conecta novos sinais
+        table.insert(characterConnections[player], humanoid:GetPropertyChangedSignal("Health"):Connect(function()
             updateHealth(humanoid, healthLabel, healthPercentageLabel)
-        end)
-        humanoid:GetPropertyChangedSignal("MaxHealth"):Connect(function()
+        end))
+        table.insert(characterConnections[player], humanoid:GetPropertyChangedSignal("MaxHealth"):Connect(function()
             updateHealth(humanoid, healthLabel, healthPercentageLabel)
-        end)
+        end))
 
         -- Atualiza a saúde inicial
         updateHealth(humanoid, healthLabel, healthPercentageLabel)
+    else
+        print(string.format("[DEBUG] No Humanoid found for player %s. Skipping health connections.", player.Name))
     end
 
     -- Armazena o ESP
     espInstances[player] = billboard
+    print(string.format("[DEBUG] ESP created and stored for player: %s", player.Name))
 end
 
 
 
+
+-- Inicialização de tabelas
+local espInstances = espInstances or {}
+local characterConnections = characterConnections or {}
+local renderSteppedConnections = renderSteppedConnections or {}
+
 -- Função para remover todos os ESPs
 local function removeAllESPs()
-    -- Itera por todos os ESPs armazenados
     for player, esp in pairs(espInstances) do
-        -- Verifica se o ESP existe e o destrói
         if esp then
             esp:Destroy()
             espInstances[player] = nil
         end
 
-        -- Remove conexões relacionadas ao Character
         if characterConnections[player] then
             for _, connection in pairs(characterConnections[player]) do
                 connection:Disconnect()
@@ -447,54 +487,90 @@ local function removeAllESPs()
         end
     end
 end
+
+
+-- Função para conectar o evento CharacterAdded
+local function connectCharacterAdded(player)
+    -- Desconectar conexões antigas, se existirem
+    if characterConnections[player] then
+        for _, connection in pairs(characterConnections[player]) do
+            connection:Disconnect()
+        end
+    end
+	
+    characterConnections[player] = {}
+
+    -- Conectar ao evento CharacterAdded
+    local charAddedConnection = player.CharacterAdded:Connect(function(character)
+        task.spawn(function()
+            -- Aguarda até que o Humanoid e o Head sejam criados no Character
+            local humanoid = character:WaitForChild("Humanoid", 5)
+            local head = character:WaitForChild("Head", 5)
+
+            if humanoid and head then
+                -- Atualizar o ESP apenas se o ESP estiver ativado
+                if getgenv().ESP then
+                    updateESP(player)
+                end
+            else
+                warn(string.format("Character for player %s is missing essential parts. ESP not created.", player.Name))
+            end
+        end)
+    end)
+
+    table.insert(characterConnections[player], charAddedConnection)
+
+    -- Se o Character já existir, conecta também
+    if player.Character then
+        task.spawn(function()
+            local humanoid = player.Character:WaitForChild("Humanoid", 5)
+            local head = player.Character:WaitForChild("Head", 5)
+
+            if humanoid and head then
+                updateESP(player)
+            end
+        end)
+    end
+end
+
+-- Função para inicializar os jogadores existentes
+local function initializePlayers()
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= Players.LocalPlayer then
+            connectCharacterAdded(player)
+        end
+    end
+end
+
 
 
 -- Main: Setup the UI and apply functionalities
 local function setupUI()
     local leaderboardGui, scrollingFrame = createLeaderboard()
 
-    -- Function to handle initial setup for existing players
-    local function initializePlayers()
-        for _, player in ipairs(Players:GetPlayers()) do
-            if player ~= Players.LocalPlayer then
-                updateESP(player)
-            end
-            player.CharacterAdded:Connect(function(character)
-                if getgenv().ESP then
-					updateESP(player)
-				end
-            end)
-        end
-    end
-
+    -- Inicializar jogadores existentes
     initializePlayers()
 
-    -- Inicializa o leaderboard com os jogadores atuais
+    -- Rebuild leaderboard com os jogadores atuais
     rebuildLeaderboard()
 
-    -- Handle new players joining
-	Players.PlayerAdded:Connect(function(player)
-		rebuildLeaderboard()
-		if player ~= Players.LocalPlayer then
-			player.CharacterAdded:Connect(function(character)
-				if getgenv().ESP then
-					updateESP(player)
-				end
-			end)
-		end
-	end)
+    -- Handle novos jogadores entrando
+    Players.PlayerAdded:Connect(function(player)
+        if player ~= Players.LocalPlayer then
+            connectCharacterAdded(player)
+        end
+        rebuildLeaderboard()
+    end)
 
-
-
-    -- Handle players leaving
+    -- Handle jogadores saindo
     Players.PlayerRemoving:Connect(function(player)
-        -- Remove the player's ESP
+        -- Remover ESP
         if espInstances[player] then
             espInstances[player]:Destroy()
             espInstances[player] = nil
         end
 
-        -- Disconnect character-related connections
+        -- Desconectar conexões relacionadas ao Character
         if characterConnections[player] then
             for _, connection in pairs(characterConnections[player]) do
                 connection:Disconnect()
@@ -502,17 +578,18 @@ local function setupUI()
             characterConnections[player] = nil
         end
 
-        -- Disconnect RenderStepped connections
+        -- Desconectar conexões RenderStepped
         if renderSteppedConnections[player] then
             renderSteppedConnections[player]:Disconnect()
             renderSteppedConnections[player] = nil
         end
 
-        rebuildLeaderboard()
-        -- Reset observedPlayer if it was the removed player
+        -- Resetar o observedPlayer se for o jogador removido
         if observedPlayer == player then
             observedPlayer = nil
         end
+
+        rebuildLeaderboard()
     end)
 end
 
