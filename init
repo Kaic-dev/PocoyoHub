@@ -472,11 +472,14 @@ local function setupUI()
 	Players.PlayerAdded:Connect(function(player)
 		rebuildLeaderboard()
 		if player ~= Players.LocalPlayer then
-			if getgenv().ESP then
-				updateESP(player)
-			end
+			player.CharacterAdded:Connect(function(character)
+				if getgenv().ESP then
+					updateESP(player)
+				end
+			end)
 		end
 	end)
+
 
 
     -- Handle players leaving
