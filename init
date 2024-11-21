@@ -146,23 +146,30 @@ end
 -- Global variable to track the currently observed player
 local observedPlayer = nil
 
--- Function to update the appearance of a player's label
+-- Função para atualizar a aparência do rótulo de um jogador
 local function updatePlayerLabelAppearance(player, label)
     local isMaxEdict = player:GetAttribute("MaxEdict")
     local characterExists = player.Character ~= nil
 
-    -- Update text transparency based on character spawn status
+    -- Verifica se o Backpack existe antes de procurar pelo item 'Observe'
+    local backpack = player:FindFirstChild("Backpack")
+    local hasObserve = backpack and backpack:FindFirstChild("Observe")
+
+    -- Atualiza a transparência do texto com base no status do personagem
     label.TextTransparency = characterExists and 0 or 0.3
 
-    -- Update text color based on observation or MaxEdict
+    -- Atualiza a cor do texto com base em várias condições
     if observedPlayer == player then
-        label.TextColor3 = Color3.fromRGB(236, 218, 16) -- Gold for observed
+        label.TextColor3 = Color3.fromRGB(236, 218, 16) -- Dourado se estiver observando
     elseif isMaxEdict then
-        label.TextColor3 = Color3.fromRGB(236, 218, 16) -- Gold for MaxEdict
+        label.TextColor3 = Color3.fromRGB(255, 165, 0) -- Laranja se tiver MaxEdict
+    elseif hasObserve then
+        label.TextColor3 = Color3.fromRGB(255, 0, 0) -- Vermelho se tiver o item 'Observe' no Backpack
     else
-        label.TextColor3 = Color3.fromRGB(255, 255, 255) -- Default white
+        label.TextColor3 = Color3.fromRGB(255, 255, 255) -- Branco padrão
     end
 end
+
 
 -- Function to reset the previous observation
 local function resetPreviousObservation(scrollingFrame)
@@ -297,181 +304,150 @@ local function rebuildLeaderboard()
     end
 end
 
--- Function to update ESP
+local function updateAllESP()
+    if not getgenv().ESP then return end
+
+    for player, esp in pairs(espInstances) do
+        if player.Character and player.Character:FindFirstChild("Head") then
+            local head = player.Character.Head
+            local distance = math.floor((Camera.CFrame.Position - head.Position).Magnitude)
+
+            local offsetLabel = esp:FindFirstChild("MainFrame"):FindFirstChild("TertiaryFrame"):FindFirstChild("Offset")
+            if offsetLabel then
+                offsetLabel.Text = string.format("[%03d]", distance)
+                updateScale(offsetLabel.Text, offsetLabel:FindFirstChild("UIScale"))
+            end
+        end
+    end
+end
+
+-- Conexão única ao RenderStepped
+RunService.RenderStepped:Connect(updateAllESP)
+
 local function updateESP(player)
-    -- Remove o ESP existente se houver
+	local function updateHealth(humanoid, healthLabel, healthPercentageLabel)
+		local health = humanoid.Health
+		local maxHealth = humanoid.MaxHealth
+		healthLabel.Text = string.format("[%d/%d]", math.floor(health), math.floor(maxHealth))
+		healthPercentageLabel.Text = string.format("[%d%%]", math.floor((health / maxHealth) * 100))
+	end
+	
+
+    -- Remove ESP existente, se houver
     if espInstances[player] then
         espInstances[player]:Destroy()
         espInstances[player] = nil
-
-        -- Disconnect the RenderStepped connection if it exists
-        if renderSteppedConnections[player] then
-            renderSteppedConnections[player]:Disconnect()
-            renderSteppedConnections[player] = nil
-        end
     end
 
-    -- Se o ESP estiver desativado, não cria um novo
+    -- Verifica se o ESP está ativado
     if not getgenv().ESP then
         return
     end
 
-    -- Função para atualizar a saúde exibida na ESP (placa de identificação)
-    local function updateHealth(humanoid)
-        if humanoid then
-            local currentHealth = math.floor(humanoid.Health)
-            local maxHealth = math.floor(humanoid.MaxHealth)
-
-            local healthLabel = espInstances[player]:FindFirstChild("MainFrame"):FindFirstChild("TertiaryFrame"):FindFirstChild("Health")
-            local healthPercentageLabel = espInstances[player]:FindFirstChild("MainFrame"):FindFirstChild("TertiaryFrame"):FindFirstChild("HealthPercentage")
-
-            if healthLabel then
-                healthLabel.Text = string.format("[%d/%d]", currentHealth, maxHealth)
-            end
-            if healthPercentageLabel then
-                healthPercentageLabel.Text = string.format("[%d%%]", (currentHealth / maxHealth) * 100)
-            end
-        end
+    -- Verifica se o jogador possui um Character e Head
+    if not (player.Character and player.Character:FindFirstChild("Head")) then
+        return
     end
 
+    local head = player.Character.Head
 
+    -- Cria o BillboardGui
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "PlayerESP"
+    billboard.Adornee = head
+    billboard.Size = BILLBOARD_SIZE
+    billboard.SizeOffset = Vector2.new(0, 0.5)
+    billboard.AlwaysOnTop = true
+    billboard.Parent = head
 
-    -- Handler for when a character is added to the player
-    local function onCharacterAdded(character)
-        -- Disconnect existing connections if any
-        if characterConnections[player] then
-            for _, connection in pairs(characterConnections[player]) do
-                connection:Disconnect()
-            end
-        end
+    -- Frame Principal
+    local mainFrame = Instance.new("Frame")
+    mainFrame.Name = "MainFrame"
+    mainFrame.Size = MAINFRAME_SIZE
+    mainFrame.BackgroundTransparency = 1
+    mainFrame.Parent = billboard
 
-        -- Create new connections for the added character
-        characterConnections[player] = {}
+    -- Frame Primário
+    local primaryFrame = Instance.new("Frame")
+    primaryFrame.Name = "PrimaryFrame"
+    primaryFrame.Size = UDim2.new(1, 0, 0.2, 0)
+    primaryFrame.Position = UDim2.new(0, 0, 0.3, 0)
+    primaryFrame.BackgroundTransparency = 1
+    primaryFrame.Parent = mainFrame
+    setupUIListLayout(primaryFrame)
 
-        local head = character:FindFirstChild("Head") or character:WaitForChild("Head", 5)
-        if not head then return end
+    -- Nome do Jogador
+    createTextLabel("PlayerName", string.format("[%s]", player.Name), UDim2.new(1, 0, 1, 0), primaryFrame, Color3.fromRGB(255, 255, 255))
 
-        -- Create BillboardGui
-        local billboard = Instance.new("BillboardGui")
-        billboard.Name = "PlayerESP"
-        billboard.Adornee = head
-        billboard.Size = BILLBOARD_SIZE
-        billboard.SizeOffset = Vector2.new(0, 0.5)
-        billboard.AlwaysOnTop = true
-        billboard.Parent = head
+    -- Frame Secundário
+    local secondaryFrame = Instance.new("Frame")
+    secondaryFrame.Name = "SecondaryFrame"
+    secondaryFrame.Size = UDim2.new(1, 0, 0.2, 0)
+    secondaryFrame.Position = UDim2.new(0, 0, 0.5, 0)
+    secondaryFrame.BackgroundTransparency = 1
+    secondaryFrame.Parent = mainFrame
+    setupUIListLayout(secondaryFrame)
 
-        -- Store the ESP instance
-        espInstances[player] = billboard
+    -- Nome do Rogue e Edict
+    createTextLabel("RogueName", string.format("[%s]", getRogueName(player)), UDim2.new(0.2, 0, 1, 0), secondaryFrame, Color3.fromRGB(255, 255, 255))
+    createTextLabel("Edict", string.format("[%s]", getEdict(player)), UDim2.new(0.1, 0, 1, 0), secondaryFrame, Color3.fromRGB(255, 255, 255))
 
-        -- Main UI Frame
-        local mainFrame = Instance.new("Frame")
-        mainFrame.Name = "MainFrame"
-        mainFrame.Size = MAINFRAME_SIZE
-        mainFrame.BackgroundTransparency = 1
-        mainFrame.Parent = billboard
+    -- Frame Terciário
+    local tertiaryFrame = Instance.new("Frame")
+    tertiaryFrame.Name = "TertiaryFrame"
+    tertiaryFrame.Size = UDim2.new(1, 0, 0.2, 0)
+    tertiaryFrame.Position = UDim2.new(0, 0, 0.7, 0)
+    tertiaryFrame.BackgroundTransparency = 1
+    tertiaryFrame.Parent = mainFrame
+    setupUIListLayout(tertiaryFrame)
 
-        -- Primary UI Frame
-        local primaryFrame = Instance.new("Frame")
-        primaryFrame.Name = "PrimaryFrame"
-        primaryFrame.Size = UDim2.new(1, 0, 0.2, 0)
-        primaryFrame.Position = UDim2.new(0, 0, 0.3, 0)
-        primaryFrame.BackgroundTransparency = 1
-        primaryFrame.Parent = mainFrame
-        setupUIListLayout(primaryFrame)
+    -- Rótulos de Distância e Saúde
+    local offsetLabel = createTextLabel("Offset", "[000]", UDim2.new(0.1, 0, 1, 0), tertiaryFrame, Color3.fromRGB(255, 255, 255))
+    createUIScale(offsetLabel)
 
-        -- Player Name Label
-        createTextLabel("PlayerName", string.format("[%s]", player.Name), UDim2.new(1, 0, 1, 0), primaryFrame, Color3.fromRGB(255, 255, 255))
+    local healthLabel = createTextLabel("Health", "[0/100]", UDim2.new(0.1, 0, 1, 0), tertiaryFrame, Color3.fromRGB(255, 255, 255))
+    local healthPercentageLabel = createTextLabel("HealthPercentage", "[100%]", UDim2.new(0.1, 0, 1, 0), tertiaryFrame, Color3.fromRGB(255, 255, 255))
 
-        -- Secondary UI Frame
-        local secondaryFrame = Instance.new("Frame")
-        secondaryFrame.Name = "SecondaryFrame"
-        secondaryFrame.Size = UDim2.new(1, 0, 0.2, 0)
-        secondaryFrame.Position = UDim2.new(0, 0, 0.5, 0)
-        secondaryFrame.BackgroundTransparency = 1
-        secondaryFrame.Parent = mainFrame
-        setupUIListLayout(secondaryFrame)
-
-        -- Rogue Name Label
-        local rogueName = getRogueName(player)
-        createTextLabel("RogueName", string.format("[%s]", rogueName), UDim2.new(0.2, 0, 1, 0), secondaryFrame, Color3.fromRGB(255, 255, 255))
-
-        -- Edict Label
-        local edict = getEdict(player)
-        createTextLabel("Edict", string.format("[%s]", edict), UDim2.new(0.1, 0, 1, 0), secondaryFrame, Color3.fromRGB(255, 255, 255))
-
-        -- Tertiary UI Frame
-        local tertiaryFrame = Instance.new("Frame")
-        tertiaryFrame.Name = "TertiaryFrame"
-        tertiaryFrame.Size = UDim2.new(1, 0, 0.2, 0)
-        tertiaryFrame.Position = UDim2.new(0, 0, 0.7, 0)
-        tertiaryFrame.BackgroundTransparency = 1
-        tertiaryFrame.Parent = mainFrame
-        setupUIListLayout(
-            tertiaryFrame,
-            Enum.FillDirection.Horizontal,
-            Enum.HorizontalAlignment.Center,
-            Enum.VerticalAlignment.Center
-        )
-
-        -- Distance Label
-        local offsetLabel = createTextLabel("Offset", "[000]", UDim2.new(0.1, 0, 1, 0), tertiaryFrame, Color3.fromRGB(255, 255, 255))
-        local offsetScale = createUIScale(offsetLabel)
-
-        -- Health Labels
-        local healthLabel = createTextLabel("Health", "[0/100]", UDim2.new(0.1, 0, 1, 0), tertiaryFrame, Color3.fromRGB(255, 255, 255))
-        local healthPercentageLabel = createTextLabel("HealthPercentage", "[100%]", UDim2.new(0.1, 0, 1, 0), tertiaryFrame, Color3.fromRGB(255, 255, 255))
-
-
-        -- Dynamic Updates for Health and Distance
-        local humanoid = character:FindFirstChildOfClass("Humanoid")
-        if humanoid then
-            table.insert(characterConnections[player], humanoid:GetPropertyChangedSignal("Health"):Connect(function()
-                updateHealth(humanoid)
-            end))
-            table.insert(characterConnections[player], humanoid:GetPropertyChangedSignal("MaxHealth"):Connect(function()
-                updateHealth(humanoid)
-            end))
-            updateHealth(humanoid)
-        end
-
-        -- RenderStepped to track distance
-        renderSteppedConnections[player] = RunService.RenderStepped:Connect(function()
-            if head:IsDescendantOf(workspace) then
-                local distance = math.floor((Camera.CFrame.Position - head.Position).magnitude)
-                local formattedText = string.format("[%03d]", distance)
-                offsetLabel.Text = formattedText
-                updateScale(formattedText, offsetScale)
-            end
+    -- Conecta sinais ao humanoide
+    local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+    if humanoid then
+        humanoid:GetPropertyChangedSignal("Health"):Connect(function()
+            updateHealth(humanoid, healthLabel, healthPercentageLabel)
         end)
+        humanoid:GetPropertyChangedSignal("MaxHealth"):Connect(function()
+            updateHealth(humanoid, healthLabel, healthPercentageLabel)
+        end)
+
+        -- Atualiza a saúde inicial
+        updateHealth(humanoid, healthLabel, healthPercentageLabel)
     end
 
-    -- Conecta o evento CharacterAdded
-    if player.Character then
-        onCharacterAdded(player.Character)
-    end
-
-    if not characterConnections[player] then
-        characterConnections[player] = {}
-    end
-
-    table.insert(characterConnections[player], player.CharacterAdded:Connect(onCharacterAdded))
+    -- Armazena o ESP
+    espInstances[player] = billboard
 end
+
+
 
 -- Função para remover todos os ESPs
 local function removeAllESPs()
+    -- Itera por todos os ESPs armazenados
     for player, esp in pairs(espInstances) do
+        -- Verifica se o ESP existe e o destrói
         if esp then
             esp:Destroy()
             espInstances[player] = nil
         end
 
-        -- Disconnect RenderStepped connections
-        if renderSteppedConnections[player] then
-            renderSteppedConnections[player]:Disconnect()
-            renderSteppedConnections[player] = nil
+        -- Remove conexões relacionadas ao Character
+        if characterConnections[player] then
+            for _, connection in pairs(characterConnections[player]) do
+                connection:Disconnect()
+            end
+            characterConnections[player] = nil
         end
     end
 end
+
 
 -- Main: Setup the UI and apply functionalities
 local function setupUI()
@@ -493,12 +469,15 @@ local function setupUI()
     rebuildLeaderboard()
 
     -- Handle new players joining
-    Players.PlayerAdded:Connect(function(player)
-        rebuildLeaderboard()
-        if player ~= Players.LocalPlayer then
-            updateESP(player)
-        end
-    end)
+	Players.PlayerAdded:Connect(function(player)
+		rebuildLeaderboard()
+		if player ~= Players.LocalPlayer then
+			if getgenv().ESP then
+				updateESP(player)
+			end
+		end
+	end)
+
 
     -- Handle players leaving
     Players.PlayerRemoving:Connect(function(player)
