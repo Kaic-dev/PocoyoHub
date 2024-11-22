@@ -340,7 +340,22 @@ RunService.RenderStepped:Connect(updateAllESP)
 
 local function updateESP(player)
     print(string.format("[DEBUG] Starting updateESP for player: %s", player.Name))
+	
+	local function waitForCharacter(player, timeout)
+		timeout = timeout or 5 -- Define um tempo limite padrão (5 segundos)
+		local startTime = os.clock()
 
+		while not player.Character do
+			if os.clock() - startTime > timeout then
+				print(string.format("[DEBUG] Timeout reached while waiting for character of player: %s", player.Name))
+				return nil
+			end
+			task.wait(0.1)
+		end
+		return player.Character
+	end
+
+	
     local function updateHealth(humanoid, healthLabel, healthPercentageLabel)
         local health = humanoid.Health or 0
         local maxHealth = humanoid.MaxHealth or 1 -- Prevent division by zero
@@ -362,18 +377,19 @@ local function updateESP(player)
     end
 
     -- Aguarda o Character e o Head estarem disponíveis
-    task.spawn(function()
-	if not player.Character then
-        	print(string.format("[DEBUG] Player %s has no character. Waiting for CharacterAdded event...", player.Name))
-        	player.CharacterAdded:Wait()
-    	end
-    end)
-
-    local head = player.Character:WaitForChild("Head", 5)
-    if not head then
-        print(string.format("[DEBUG] Player %s's character has no 'Head'. Aborting ESP creation.", player.Name))
+    if not player.Character then
+		print(string.format("[DEBUG] Player %s has no character. Waiting for CharacterAdded event...", player.Name))
+		if not waitForCharacter(player, 5) then
+			print(string.format("[DEBUG] Failed to find character for player: %s. Skipping ESP creation.", player.Name))
         return
-    end
+		end
+	end
+
+	local head = player.Character:WaitForChild("Head", 5)
+	if not head then
+		print(string.format("[DEBUG] Player %s's character has no 'Head'. Skipping ESP creation.", player.Name))
+		return
+	end
 
     print(string.format("[DEBUG] Creating ESP for player: %s", player.Name))
 
