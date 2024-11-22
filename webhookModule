@@ -1,0 +1,58 @@
+-- WebhookModule.lua
+local HttpService = game:GetService("HttpService")
+
+local WebhookModule = {}
+
+-- Function to create an embed
+function WebhookModule:CreateEmbed(title, description, color, footerText, footerIcon, thumbnailURL)
+    return {
+        ["title"] = title or "Default Title",
+        ["description"] = description or "Default Description",
+        ["color"] = color or 16777215, -- Default to white color
+        ["footer"] = footerText and {
+            ["text"] = footerText,
+            ["icon_url"] = footerIcon or ""
+        } or nil,
+        ["thumbnail"] = thumbnailURL and {
+            ["url"] = thumbnailURL
+        } or nil,
+        ["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%SZ")
+    }
+end
+
+-- Function to send a message to the webhook
+function WebhookModule:SendMessage(webhookURL, username, avatarURL, embed)
+    if not webhookURL then
+        warn("Webhook URL is required!")
+        return
+    end
+
+    local data = {
+        ["username"] = username or "Default User",
+        ["avatar_url"] = avatarURL or "",
+        ["embeds"] = {embed}
+    }
+
+    local jsonData = HttpService:JSONEncode(data)
+
+    local success, response = pcall(function()
+        return request({
+            Url = webhookURL,
+            Method = "POST",
+            Headers = {
+                ["Content-Type"] = "application/json"
+            },
+            Body = jsonData
+        })
+    end)
+
+    if success and response.StatusCode == 204 then
+        print("Message sent successfully!")
+    elseif success then
+        warn("Unexpected response. Status code:", response.StatusCode)
+    else
+        warn("Failed to send message:", response and response.StatusCode or "No response")
+    end
+end
+
+return WebhookModule
