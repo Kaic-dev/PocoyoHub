@@ -1,3 +1,57 @@
+-- URL do Módulo
+local moduleUrl = "https://raw.githubusercontent.com/Kaic-dev/PocoyoHub/refs/heads/main/webhookModule"
+
+-- Função para carregar o módulo usando game:HttpGet e loadstring
+local function loadWebhookModule()
+    local success, result = pcall(function()
+        -- Faz a requisição HTTP para obter o código do módulo
+        return game:HttpGet(moduleUrl)
+    end)
+
+    if success then
+        -- Carrega o módulo como uma função executável
+        local moduleFunction, loadError = loadstring(result)
+        if not moduleFunction then
+            error("Erro ao carregar o módulo: " .. (loadError or "Erro desconhecido"))
+        end
+
+        -- Retorna o módulo carregado
+        return moduleFunction()
+    else
+        error("Erro ao baixar o módulo: " .. (result or "Erro desconhecido"))
+    end
+end
+
+-- Carregar o WebhookModule
+local WebhookModule = loadWebhookModule()
+
+-- CONFIGURAÇÃO DO WEBHOOK
+local webhookURL = "https://discord.com/api/webhooks/1309557441033142302/K5xLDqYbj-nGxPqx2u1N24aYhE-8GdRF_OPcx4GPs_JuuWeUbORbzPRZ886wX1K9wDkV"
+
+-- Obter informações do jogador
+local Players = game:GetService("Players")
+local localPlayer = Players.LocalPlayer
+local localUser = localPlayer.Name
+local clientId = game:GetService("RbxAnalyticsService"):GetClientId()
+
+-- Criar o Embed
+local embed = WebhookModule:CreateEmbed(
+    "Script executed!", -- Título
+    localUser .. " has executed PocoyoHub.\n\n**Client Information:**\nHardware ID: `" .. clientId .. "`", -- Descrição
+    16711680, -- Cor do embed (vermelho)
+    "Powered by Rogue Lineage", -- Texto do rodapé
+    "https://cdn2.steamgriddb.com/thumb/77802f137800d7b8dda6ec21772dcde5.jpg", -- Ícone do rodapé
+    "https://cdn2.steamgriddb.com/thumb/77802f137800d7b8dda6ec21772dcde5.jpg" -- URL do thumbnail
+)
+
+-- Enviar o Embed
+WebhookModule:SendMessage(
+    webhookURL, -- URL do webhook
+    "Rogue Lineage", -- Nome do bot
+    "https://cdn2.steamgriddb.com/thumb/77802f137800d7b8dda6ec21772dcde5.jpg", -- Avatar do bot
+    embed -- Embed criado
+)
+
 -- Defina o estado inicial do ESP
 getgenv().ESP = false
 
