@@ -362,10 +362,12 @@ local function updateESP(player)
     end
 
     -- Aguarda o Character e o Head estarem disponíveis
-    if not player.Character then
-        print(string.format("[DEBUG] Player %s has no character. Waiting for CharacterAdded event...", player.Name))
-        player.CharacterAdded:Wait()
-    end
+    task.spawn(function()
+	if not player.Character then
+        	print(string.format("[DEBUG] Player %s has no character. Waiting for CharacterAdded event...", player.Name))
+        	player.CharacterAdded:Wait()
+    	end
+    end)
 
     local head = player.Character:WaitForChild("Head", 5)
     if not head then
