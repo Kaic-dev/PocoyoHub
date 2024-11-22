@@ -507,7 +507,6 @@ local function removeAllESPs()
 end
 
 
--- Função para conectar o evento CharacterAdded
 local function connectCharacterAdded(player)
     -- Desconectar conexões antigas, se existirem
     if characterConnections[player] then
@@ -515,24 +514,19 @@ local function connectCharacterAdded(player)
             connection:Disconnect()
         end
     end
-	
     characterConnections[player] = {}
 
     -- Conectar ao evento CharacterAdded
     local charAddedConnection = player.CharacterAdded:Connect(function(character)
         task.spawn(function()
-            -- Aguarda até que o Humanoid e o Head sejam criados no Character
-            local humanoid = character:WaitForChild("Humanoid", 5)
-            local head = character:WaitForChild("Head", 5)
-
-            if humanoid and head then
-                -- Atualizar o ESP apenas se o ESP estiver ativado
-                if getgenv().ESP then
-                    updateESP(player)
-                end
-            else
-                warn(string.format("Character for player %s is missing essential parts. ESP not created.", player.Name))
+            -- Verificar se o ESP está ativado antes de prosseguir
+            if not getgenv().ESP then
+                print(string.format("[DEBUG] ESP is globally disabled. Skipping update for player: %s", player.Name))
+                return
             end
+
+            -- Atualizar o ESP utilizando o fluxo já tratado no updateESP
+            updateESP(player)
         end)
     end)
 
@@ -541,17 +535,13 @@ local function connectCharacterAdded(player)
     -- Se o Character já existir, conecta também
     if player.Character then
         task.spawn(function()
-            local humanoid = player.Character:WaitForChild("Humanoid", 5)
-            local head = player.Character:WaitForChild("Head", 5)
-
-            if humanoid and head then
-                updateESP(player)
-            end
+            -- Atualizar o ESP utilizando o fluxo já tratado no updateESP
+            updateESP(player)
         end)
     end
 end
 
--- Função para inicializar os jogadores existentes
+
 local function initializePlayers()
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= Players.LocalPlayer then
@@ -562,7 +552,7 @@ end
 
 
 
--- Main: Setup the UI and apply functionalities
+
 local function setupUI()
     local leaderboardGui, scrollingFrame = createLeaderboard()
 
@@ -610,6 +600,7 @@ local function setupUI()
         rebuildLeaderboard()
     end)
 end
+
 
 setupUI()
 
