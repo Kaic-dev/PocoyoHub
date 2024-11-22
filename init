@@ -200,29 +200,69 @@ end
 -- Global variable to track the currently observed player
 local observedPlayer = nil
 
--- Função para atualizar a aparência do rótulo de um jogador
-local function updatePlayerLabelAppearance(player, label)
+-- CONSTANTS
+local SOUND_MANAGER_URL = "https://raw.githubusercontent.com/Kaic-dev/PocoyoHub/refs/heads/main/soundModule"
+local OBSERVE_SOUND_ID = "rbxassetid://6073491164"
+
+-- Load SoundManager Module
+local function loadSoundManager()
+    local success, result = pcall(function()
+        -- Faz a requisição HTTP para obter o código do módulo
+        return game:HttpGet(SOUND_MANAGER_URL)
+    end)
+
+    if success then
+        -- Converte o código carregado em uma função executável
+        local moduleFunction, loadError = loadstring(result)
+        if not moduleFunction then
+            error("Erro ao carregar o módulo: " .. (loadError or "Erro desconhecido"))
+        end
+
+        -- Executa a função e retorna o módulo carregado
+        return moduleFunction()
+    else
+        error("Erro ao baixar o módulo: " .. (result or "Erro desconhecido"))
+    end
+end
+
+-- Carrega o módulo SoundManager
+local SoundManager = loadSoundManager()
+
+-- Update player label appearance
+local function updatePlayerLabelAppearance(player, label, observedPlayer)
+    -- Guard clause for invalid inputs
+    if not player or not label then
+        warn("Player or label is invalid")
+        return
+    end
+
+    -- VARIABLES
     local isMaxEdict = player:GetAttribute("MaxEdict")
     local characterExists = player.Character ~= nil
-
-    -- Verifica se o Backpack existe antes de procurar pelo item 'Observe'
     local backpack = player:FindFirstChild("Backpack")
     local hasObserve = backpack and backpack:FindFirstChild("Observe")
 
-    -- Atualiza a transparência do texto com base no status do personagem
+    -- Update transparency based on character existence
     label.TextTransparency = characterExists and 0 or 0.3
 
-    -- Atualiza a cor do texto com base em várias condições
+    -- Determine text color
+    local textColor
     if observedPlayer == player then
-        label.TextColor3 = Color3.fromRGB(236, 218, 16) -- Dourado se estiver observando
+        textColor = Color3.fromRGB(236, 218, 16) -- Gold
     elseif isMaxEdict then
-        label.TextColor3 = Color3.fromRGB(255, 165, 0) -- Laranja se tiver MaxEdict
+        textColor = Color3.fromRGB(255, 165, 0) -- Orange
     elseif hasObserve then
-        label.TextColor3 = Color3.fromRGB(255, 0, 0) -- Vermelho se tiver o item 'Observe' no Backpack
+        textColor = Color3.fromRGB(255, 0, 0) -- Red
+        -- Play sound if Observe is found
+        SoundManager:playSound(OBSERVE_SOUND_ID)
     else
-        label.TextColor3 = Color3.fromRGB(255, 255, 255) -- Branco padrão
+        textColor = Color3.fromRGB(255, 255, 255) -- White (default)
     end
+
+    -- Apply color to label
+    label.TextColor3 = textColor
 end
+
 
 
 -- Function to reset the previous observation
