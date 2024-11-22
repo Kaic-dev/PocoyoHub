@@ -1,0 +1,46 @@
+-- SoundManager.lua
+
+-- SERVICES
+local Players = game:GetService("Players")
+
+-- MODULE
+local SoundManager = {}
+
+-- Play sound for LocalPlayer
+function SoundManager:playSound(soundId)
+    local localPlayer = Players.LocalPlayer
+    if not localPlayer then
+        warn("LocalPlayer not found")
+        return
+    end
+
+    -- Ensure PlayerGui exists
+    local playerGui = localPlayer:FindFirstChild("PlayerGui")
+    if not playerGui then
+        warn("PlayerGui not found")
+        return
+    end
+
+    -- Check for existing sound to avoid duplication
+    local existingSound = playerGui:FindFirstChild("ObserveSound")
+    if existingSound then
+        existingSound:Play()
+        return
+    end
+
+    -- Create new sound instance
+    local sound = Instance.new("Sound")
+    sound.Name = "ObserveSound"
+    sound.SoundId = soundId
+    sound.Looped = false
+    sound.Volume = 1
+    sound.Parent = playerGui
+
+    -- Play sound and clean up after playback
+    sound:Play()
+    sound.Ended:Connect(function()
+        sound:Destroy()
+    end)
+end
+
+return SoundManager
