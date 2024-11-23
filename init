@@ -234,12 +234,12 @@ local SoundManager = loadSoundManager()
 local function updatePlayerLabelAppearance(player, label, observedPlayer)
     -- Guard clause for invalid inputs
     if not player or not label then
-        warn("Player or label is invalid")
+        warn("[DEBUG] Player or label is invalid")
         return
     end
 
     -- VARIABLES
-    local isMaxEdict = player:GetAttribute("MaxEdict")
+    local isMaxEdict = player:GetAttribute("MaxEdict") or false
     local characterExists = player.Character ~= nil
     local backpack = player:FindFirstChild("Backpack")
     local hasObserve = backpack and backpack:FindFirstChild("Observe")
@@ -264,15 +264,20 @@ local function updatePlayerLabelAppearance(player, label, observedPlayer)
     end
 
     -- Apply determined text color
-    label.TextColor3 = getTextColor()
+    local textColor = getTextColor()
+    label.TextColor3 = textColor
+    print(string.format("[DEBUG] Updated label for %s with color: %s", player.Name, tostring(textColor)))
 
     -- Play sounds based on conditions
     if hasObserve then
+        print("[DEBUG] Playing observe sound for:", player.Name)
         SoundManager:playSound(OBSERVE_SOUND_ID)
     elseif isGreaterNavaran then
+        print("[DEBUG] Playing greater navaran sound for:", player.Name)
         SoundManager:playSound(MOD_SOUND_ID)
     end
 end
+
 
 
 
