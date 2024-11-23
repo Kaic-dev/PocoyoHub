@@ -53,7 +53,8 @@ WebhookModule:SendMessage(
 )
 
 -- Defina o estado inicial do ESP
-getgenv().ESP = false
+getgenv().PlayerESP = false
+getgenv().TrinketESP = false
 
 -- SERVICES
 local Players = game:GetService("Players")
@@ -244,29 +245,35 @@ local function updatePlayerLabelAppearance(player, label, observedPlayer)
     local hasObserve = backpack and backpack:FindFirstChild("Observe")
     local isGreaterNavaran = backpack and backpack:FindFirstChild("Jack")
 
-    -- Update transparency based on character existence
+    -- Update label transparency based on character existence
     label.TextTransparency = characterExists and 0 or 0.3
 
-    -- Determine text color
-    local textColor
-    if observedPlayer == player then
-        textColor = Color3.fromRGB(236, 218, 16) -- Gold
-    elseif isMaxEdict then
-        textColor = Color3.fromRGB(255, 165, 0) -- Orange
-    elseif hasObserve then
-        textColor = Color3.fromRGB(255, 0, 0) -- Red
-        -- Play sound if Observe is found
-        SoundManager:playSound(OBSERVE_SOUND_ID)
-    elseif isGreaterNavaran then
-	textColor = Color3.fromRGB(75, 0, 130) -- Purple
-	SoundManager:playSound(MOD_SOUND_ID)
-    else
-        textColor = Color3.fromRGB(255, 255, 255) -- White (default)
+    -- FUNCTION: Determine text color based on player attributes
+    local function getTextColor()
+        if observedPlayer == player then
+            return Color3.fromRGB(236, 218, 16) -- Gold
+        elseif isMaxEdict then
+            return Color3.fromRGB(255, 165, 0) -- Orange
+        elseif hasObserve then
+            return Color3.fromRGB(255, 0, 0) -- Red
+        elseif isGreaterNavaran then
+            return Color3.fromRGB(75, 0, 130) -- Purple
+        else
+            return Color3.fromRGB(255, 255, 255) -- White (default)
+        end
     end
 
-    -- Apply color to label
-    label.TextColor3 = textColor
+    -- Apply determined text color
+    label.TextColor3 = getTextColor()
+
+    -- Play sounds based on conditions
+    if hasObserve then
+        SoundManager:playSound(OBSERVE_SOUND_ID)
+    elseif isGreaterNavaran then
+        SoundManager:playSound(MOD_SOUND_ID)
+    end
 end
+
 
 
 
@@ -418,7 +425,7 @@ local function rebuildLeaderboard()
 end
 
 local function updateAllESP()
-    if not getgenv().ESP then return end
+    if not getgenv().PlayerESP then return end
 
     for player, esp in pairs(espInstances) do
         if player.Character and player.Character:FindFirstChild("Head") then
@@ -470,7 +477,7 @@ local function updateESP(player)
     end
 
     -- Verifica se o ESP está ativado
-    if not getgenv().ESP then
+    if not getgenv().PlayerESP then
         print("[DEBUG] ESP is disabled globally. Exiting updateESP.")
         return
     end
@@ -619,7 +626,7 @@ local function connectCharacterAdded(player)
     local charAddedConnection = player.CharacterAdded:Connect(function(character)
         task.spawn(function()
             -- Verificar se o ESP está ativado antes de prosseguir
-            if not getgenv().ESP then
+            if not getgenv().PlayerESP then
                 print(string.format("[DEBUG] ESP is globally disabled. Skipping update for player: %s", player.Name))
                 return
             end
@@ -778,37 +785,71 @@ espFrame.Size = UDim2.new(1, 0, 1, 0)
 espFrame.Name = "ESP"
 espFrame.Parent = mainFrame
 
-local toggleFrame = Instance.new("Frame")
-toggleFrame.BackgroundTransparency = 0.9
-toggleFrame.Position = UDim2.new(0.03, 0, 0.3, 0)
-toggleFrame.Size = UDim2.new(0.2, 0, 0.1, 0)
-toggleFrame.Name = "Toggle"
-toggleFrame.Parent = espFrame
+-- Player ESP
+local playerESPFrame = Instance.new("Frame")
+playerESPFrame.BackgroundTransparency = 0.9
+playerESPFrame.Position = UDim2.new(0.03, 0, 0.3, 0)
+playerESPFrame.Size = UDim2.new(0.2, 0, 0.1, 0)
+playerESPFrame.Name = "PlayerESPFrame"
+playerESPFrame.Parent = espFrame
 
 -- ESP Text Label
-local espLabel = Instance.new("TextLabel")
-espLabel.BackgroundTransparency = 1
-espLabel.Size = UDim2.new(1, 0, 1, 0)
-espLabel.Font = Enum.Font.SourceSansBold
-espLabel.Text = "ESP"
-espLabel.TextSize = 14
-espLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-espLabel.TextXAlignment = Enum.TextXAlignment.Left
-espLabel.Parent = toggleFrame
+local playerESPLabel = Instance.new("TextLabel")
+playerESPLabel.BackgroundTransparency = 1
+playerESPLabel.Size = UDim2.new(1, 0, 1, 0)
+playerESPLabel.Font = Enum.Font.SourceSansBold
+playerESPLabel.Text = "Player ESP"
+playerESPLabel.TextSize = 14
+playerESPLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+playerESPLabel.TextXAlignment = Enum.TextXAlignment.Left
+playerESPLabel.Parent = playerESPFrame
 
 -- Toggle Button (ON/OFF)
-local toggleButton = Instance.new("TextButton")
-toggleButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-toggleButton.BackgroundTransparency = 1
-toggleButton.Size = UDim2.new(1, 0, 1, 0)
-toggleButton.Font = Enum.Font.SourceSansBold
-toggleButton.Text = "OFF"
-toggleButton.TextSize = 14
-toggleButton.TextColor3 = Color3.fromRGB(255, 0, 0)
-toggleButton.TextStrokeTransparency = 1
-toggleButton.Name = "ToggleButton"
-toggleButton.TextXAlignment = Enum.TextXAlignment.Right
-toggleButton.Parent = toggleFrame
+local playerToggleButton = Instance.new("TextButton")
+playerToggleButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+playerToggleButton.BackgroundTransparency = 1
+playerToggleButton.Size = UDim2.new(1, 0, 1, 0)
+playerToggleButton.Font = Enum.Font.SourceSansBold
+playerToggleButton.Text = "OFF"
+playerToggleButton.TextSize = 14
+playerToggleButton.TextColor3 = Color3.fromRGB(255, 0, 0)
+playerToggleButton.TextStrokeTransparency = 1
+playerToggleButton.Name = "PlayerToggleButton"
+playerToggleButton.TextXAlignment = Enum.TextXAlignment.Right
+playerToggleButton.Parent = playerESPFrame
+
+-- Trinket ESP
+local trinketESPFrame = Instance.new("Frame")
+trinketESPFrame.BackgroundTransparency = 0.9
+trinketESPFrame.Position = UDim2.new(0.03, 0, 0.45, 0)
+trinketESPFrame.Size = UDim2.new(0.2, 0, 0.1, 0)
+trinketESPFrame.Name = "TrinketESPFrame"
+trinketESPFrame.Parent = espFrame
+
+-- Trinket ESP Text Label
+local trinketESPLabel = Instance.new("TextLabel")
+trinketESPLabel.BackgroundTransparency = 1
+trinketESPLabel.Size = UDim2.new(1, 0, 1, 0)
+trinketESPLabel.Font = Enum.Font.SourceSansBold
+trinketESPLabel.Text = "Trinket ESP"
+trinketESPLabel.TextSize = 14
+trinketESPLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+trinketESPLabel.TextXAlignment = Enum.TextXAlignment.Left
+trinketESPLabel.Parent = trinketESPFrame
+
+-- Trinket Toggle Button (ON/OFF)
+local trinketToggleButton = Instance.new("TextButton")
+trinketToggleButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+trinketToggleButton.BackgroundTransparency = 1
+trinketToggleButton.Size = UDim2.new(1, 0, 1, 0)
+trinketToggleButton.Font = Enum.Font.SourceSansBold
+trinketToggleButton.Text = "OFF"
+trinketToggleButton.TextSize = 14
+trinketToggleButton.TextColor3 = Color3.fromRGB(255, 0, 0)
+trinketToggleButton.TextStrokeTransparency = 1
+trinketToggleButton.Name = "TrinketToggleButton"
+trinketToggleButton.TextXAlignment = Enum.TextXAlignment.Right
+trinketToggleButton.Parent = trinketESPFrame
 
 -- UI Layout
 local uiLayout = Instance.new("UIListLayout")
@@ -829,7 +870,11 @@ cornerButton.Parent = espButton
 
 local cornerToggle = Instance.new("UICorner")
 cornerToggle.CornerRadius = UDim.new(0.1, 0)
-cornerToggle.Parent = toggleButton
+cornerToggle.Parent = playerToggleButton
+
+local cornerToggle2 = Instance.new("UICorner")
+cornerToggle.CornerRadius = UDim.new(0.1, 0)
+cornerToggle.Parent = trinketToggleButton
 
 -- FUNCTIONALITY
 -- Toggle ScreenGui Visibility with INSERT
@@ -841,12 +886,12 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 end)
 
 -- Toggle ESP Functionality
-toggleButton.MouseButton1Click:Connect(function()
-    getgenv().ESP = not getgenv().ESP
-    if getgenv().ESP then
+playerToggleButton.MouseButton1Click:Connect(function()
+    getgenv().PlayerESP = not getgenv().PlayerESP
+    if getgenv().PlayerESP then
         print("ESP Enabled")
-        toggleButton.Text = "ON"
-        toggleButton.TextColor3 = Color3.fromRGB(0, 255, 0)
+        playerToggleButton.Text = "ON"
+        playerToggleButton.TextColor3 = Color3.fromRGB(0, 255, 0)
 
         -- Ensure ESPs are created for all players
         for _, player in ipairs(Players:GetPlayers()) do
@@ -856,8 +901,8 @@ toggleButton.MouseButton1Click:Connect(function()
         end
     else
         print("ESP Disabled")
-        toggleButton.Text = "OFF"
-        toggleButton.TextColor3 = Color3.fromRGB(255, 0, 0)
+        playerToggleButton.Text = "OFF"
+        playerToggleButton.TextColor3 = Color3.fromRGB(255, 0, 0)
 
         -- Remove all existing ESPs
         removeAllESPs()
@@ -874,3 +919,187 @@ end)
 -- Inicializar o SuperLeaderboard na primeira execução
 print("[DEBUG] Initializing SuperLeaderboard...")
 rebuildLeaderboard()
+
+-- TABLE: Stores all parts with a BillboardGui
+local partsWithBillboard = {}
+
+-- FUNCTION: Toggles the visibility of all BillboardGui elements
+local function toggleAllVisibility(isVisible)
+    if #partsWithBillboard == 0 then
+        warn("[DEBUG] No parts available in partsWithBillboard to toggle visibility.")
+        return
+    end
+
+    for _, part in ipairs(partsWithBillboard) do
+        local billboardGui = part:FindFirstChild("BillboardGui")
+        if billboardGui and billboardGui:IsA("BillboardGui") then
+            billboardGui.Enabled = isVisible
+        else
+            warn("No BillboardGui found on part:", part.Name)
+        end
+    end
+end
+
+-- Toggle Trinket ESP Functionality
+trinketToggleButton.MouseButton1Click:Connect(function()
+    getgenv().TrinketESP = not getgenv().TrinketESP
+
+    if getgenv().TrinketESP then
+        print("Trinket ESP Enabled")
+        trinketToggleButton.Text = "ON"
+        trinketToggleButton.TextColor3 = Color3.fromRGB(0, 255, 0) -- Green for ON
+
+        -- Enable visibility for all BillboardGui elements
+        toggleAllVisibility(true)
+    else
+        print("Trinket ESP Disabled")
+        trinketToggleButton.Text = "OFF"
+        trinketToggleButton.TextColor3 = Color3.fromRGB(255, 0, 0) -- Red for OFF
+
+        -- Disable visibility for all BillboardGui elements
+        toggleAllVisibility(false)
+    end
+end)
+
+-- CONSTANTS: Rarity definitions and default configurations
+local rarities = {
+    Common = {
+        default_color = Color3.fromRGB(157, 157, 157), -- White
+        assets = {
+            {asset_id = "rbxassetid://5204003946", name = "Goblet"},
+            {asset_id = "rbxassetid://5196782997", name = "Old Ring"},
+            {asset_id = "rbxassetid://5196577540", name = "Old Amulet"},
+            {asset_id = "rbxassetid://5196551436", name = "Amulet"},
+            {asset_id = "rbxassetid://5196776695", name = "Ring"}
+        },
+        materials = {
+            [Enum.Material.Slate] = {name = "Idol of the Forgotten", color = nil} -- Uses default color
+        }
+    },
+    Rare = {
+        default_color = Color3.fromRGB(0, 0, 255), -- Blue
+        assets = {
+            {asset_id = "rbxassetid://5204453430", name = "Scroll", color = Color3.fromRGB(157, 89, 22)}
+        },
+        materials = {
+            [Enum.Material.Glass] = {name = "Opal", color = nil} -- Uses default color
+        }
+    }
+}
+
+-- FUNCTION: Retrieves asset information based on AssetId
+local AssetManager = {}
+function AssetManager:getAssetInfo(asset_id)
+    for rarity, data in pairs(rarities) do
+        for _, asset in ipairs(data.assets) do
+            if asset.asset_id == asset_id then
+                return {
+                    rarity = rarity,
+                    name = asset.name or "Unknown",
+                    color = asset.color or data.default_color
+                }
+            end
+        end
+    end
+    return nil -- Returns nil if no match is found
+end
+
+-- FUNCTION: Retrieves rarity info based on material
+function AssetManager:getMaterialInfo(material)
+    for rarity, data in pairs(rarities) do
+        if data.materials and data.materials[material] then
+            local material_data = data.materials[material]
+            return {
+                rarity = rarity,
+                name = material_data.name,
+                color = material_data.color or data.default_color
+            }
+        end
+    end
+    return nil -- Returns nil if no material match is found
+end
+
+-- FUNCTION: Handles new parts added to the workspace
+local function handleNewPart(part)
+    if not (part:IsA("BasePart") and part.Name == "Part") then
+        return -- Guard clause to exit early for invalid parts
+    end
+
+    local id_value = part:FindFirstChild("ID")
+    if not (id_value and id_value:IsA("StringValue")) then
+        return -- If no valid ID, exit
+    end
+
+    print("Part has ID:", id_value.Value)
+
+    local item_name = "Unknown"
+    local item_color = Color3.fromRGB(128, 128, 128) -- Default gray color
+
+    if part:IsA("MeshPart") and part.MeshId and part.MeshId:match("^rbxassetid://") then
+        local asset_info = AssetManager:getAssetInfo(part.MeshId)
+        if asset_info then
+            item_name = asset_info.name
+            item_color = asset_info.color
+            print("New Part added:", item_name, "of rarity:", asset_info.rarity)
+        else
+            print("MeshId not found in rarities table:", part.MeshId)
+        end
+    else
+        -- Fallback to material-based rarity check
+        local material_info = AssetManager:getMaterialInfo(part.Material)
+        if material_info then
+            item_name = material_info.name
+            item_color = material_info.color
+            print("New Part identified by material:", item_name, "of rarity:", material_info.rarity)
+        else
+            print("Part material not found in rarities table:", part.Material)
+        end
+    end
+
+    -- Create BillboardGui to display item information
+    local billboard_gui = Instance.new("BillboardGui")
+    billboard_gui.Name = "BillboardGui"
+    billboard_gui.Adornee = part
+    billboard_gui.Size = UDim2.new(0, 100, 0, 100)
+    billboard_gui.AlwaysOnTop = true
+    billboard_gui.MaxDistance = math.huge
+    billboard_gui.ResetOnSpawn = true
+    billboard_gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    billboard_gui.Enabled = getgenv().TrinketESP == true -- Visibility depends on global variable
+    billboard_gui.Parent = part
+
+    local text_label = Instance.new("TextLabel")
+    text_label.Name = "TextLabel"
+    text_label.AnchorPoint = Vector2.new(0.5, 0.5)
+    text_label.Position = UDim2.new(0.5, 0, 0.5, 0)
+    text_label.Size = UDim2.new(1, 0, 1, 0)
+    text_label.BackgroundTransparency = 1
+    text_label.Text = item_name
+    text_label.Font = Enum.Font.SourceSansBold
+    text_label.TextSize = 14
+    text_label.TextColor3 = item_color
+    text_label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    text_label.TextStrokeTransparency = 0.5
+    text_label.TextXAlignment = Enum.TextXAlignment.Center
+    text_label.TextYAlignment = Enum.TextYAlignment.Center
+    text_label.Parent = billboard_gui
+
+    -- Prevent duplicate additions
+    if not table.find(partsWithBillboard, part) then
+        table.insert(partsWithBillboard, part)
+    end
+end
+
+-- FUNCTION: Initializes part monitoring in the workspace
+local function initializeWorkspaceMonitoring()
+    workspace.ChildAdded:Connect(handleNewPart)
+
+    -- Optional: Process existing parts in the workspace
+    for _, child in ipairs(workspace:GetChildren()) do
+        handleNewPart(child)
+    end
+end
+
+-- Main Execution: Start monitoring the workspace
+initializeWorkspaceMonitoring()
+
