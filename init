@@ -263,20 +263,28 @@ local function updatePlayerLabelAppearance(player, label, observedPlayer)
         end
     end
 
-    -- Apply determined text color
-    local textColor = getTextColor()
-    label.TextColor3 = textColor
-    print(string.format("[DEBUG] Updated label for %s with color: %s", player.Name, tostring(textColor)))
+    -- Determine the new color
+    local newColor = getTextColor()
 
-    -- Play sounds based on conditions
-    if hasObserve then
-        print("[DEBUG] Playing observe sound for:", player.Name)
-        SoundManager:playSound(OBSERVE_SOUND_ID)
-    elseif isGreaterNavaran then
-        print("[DEBUG] Playing greater navaran sound for:", player.Name)
-        SoundManager:playSound(MOD_SOUND_ID)
+    -- Check if the label's color is already the same
+    if label.TextColor3 ~= newColor then
+        -- Apply the new color
+        label.TextColor3 = newColor
+        print(string.format("[DEBUG] Updated label for %s with color: %s", player.Name, tostring(newColor)))
+
+        -- Play sounds only if the color changes
+        if newColor == Color3.fromRGB(255, 0, 0) then -- Red (hasObserve)
+            print("[DEBUG] Playing observe sound for:", player.Name)
+            SoundManager:playSound(OBSERVE_SOUND_ID)
+        elseif newColor == Color3.fromRGB(75, 0, 130) then -- Purple (isGreaterNavaran)
+            print("[DEBUG] Playing greater navaran sound for:", player.Name)
+            SoundManager:playSound(MOD_SOUND_ID)
+        end
+    else
+        print(string.format("[DEBUG] No color change for %s. Skipping sound.", player.Name))
     end
 end
+
 
 
 
