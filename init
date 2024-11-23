@@ -202,7 +202,7 @@ local observedPlayer = nil
 
 -- CONSTANTS
 local SOUND_MANAGER_URL = "https://raw.githubusercontent.com/Kaic-dev/PocoyoHub/refs/heads/main/soundModule"
-local OBSERVE_SOUND_ID = "rbxassetid://6073491164"
+local OBSERVE_SOUND_ID = "rbxassetid://138081500"
 
 -- Load SoundManager Module
 local function loadSoundManager()
