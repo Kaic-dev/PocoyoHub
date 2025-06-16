@@ -1,46 +1,156 @@
--- SoundManager.lua
+-- SoundModule.lua
+--[[
+    SoundModule: A module for managing sound playback in Roblox
+    Features:
+    - Play sounds for LocalPlayer
+    - Sound instance management
+    - Volume control
+    - Sound queueing
+    - Error handling
+]]
 
--- SERVICES
+-- Services
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 
--- MODULE
-local SoundManager = {}
+-- Constants
+local DEFAULT_VOLUME = 1
+local DEFAULT_LOOPED = false
+local SOUND_INSTANCE_NAME = "ObserveSound"
 
--- Play sound for LocalPlayer
-function SoundManager:playSound(soundId)
+-- Types
+type SoundConfig = {
+    volume: number?,
+    looped: boolean?,
+    priority: number?,
+    playbackSpeed: number?,
+    fadeInTime: number?,
+    fadeOutTime: number?
+}
+
+local SoundModule = {}
+
+-- Private variables
+local activeSounds = {}
+local soundQueue = {}
+
+-- Private functions
+local function validatePlayer(): (boolean, string?)
     local localPlayer = Players.LocalPlayer
     if not localPlayer then
-        warn("LocalPlayer not found")
-        return
+        return false, "LocalPlayer not found"
     end
 
-    -- Ensure PlayerGui exists
     local playerGui = localPlayer:FindFirstChild("PlayerGui")
     if not playerGui then
-        warn("PlayerGui not found")
-        return
+        return false, "PlayerGui not found"
     end
 
-    -- Check for existing sound to avoid duplication
-    local existingSound = playerGui:FindFirstChild("ObserveSound")
-    if existingSound then
-        existingSound:Play()
-        return
-    end
-
-    -- Create new sound instance
-    local sound = Instance.new("Sound")
-    sound.Name = "ObserveSound"
-    sound.SoundId = soundId
-    sound.Looped = false
-    sound.Volume = 1
-    sound.Parent = playerGui
-
-    -- Play sound and clean up after playback
-    sound:Play()
-    sound.Ended:Connect(function()
-        sound:Destroy()
-    end)
+    return true, playerGui
 end
 
-return SoundManager
+local function createSoundInstance(soundId: string, config: SoundConfig): Sound
+    local sound = Instance.new("Sound")
+    sound.Name = SOUND_INSTANCE_NAME
+    sound.SoundId = soundId
+    sound.Looped = config.looped or DEFAULT_LOOPED
+    sound.Volume = config.volume or DEFAULT_VOLUME
+    sound.PlaybackSpeed = config.playbackSpeed or 1
+    sound.Priority = config.priority or 0
+
+    return sound
+end
+
+local function cleanupSound(sound: Sound)
+    if sound then
+        sound:Stop()
+        sound:Destroy()
+        activeSounds[sound] = nil
+    end
+end
+
+-- Public functions
+function SoundModule:playSound(soundId: string, config: SoundConfig?): (boolean, string?)
+    -- Input validation
+    if not soundId or type(soundId) ~= "string" then
+        return false, "Invalid sound ID"
+    end
+
+    -- Validate player and get PlayerGui
+    local success, playerGui = validatePlayer()
+    if not success then
+        return false, playerGui
+    end
+
+    -- Check for existing sound
+    local existingSound = playerGui:FindFirstChild(SOUND_INSTANCE_NAME)
+    if existingSound then
+        cleanupSound(existingSound)
+    end
+
+    -- Create and configure new sound
+    local sound = createSoundInstance(soundId, config or {})
+    sound.Parent = playerGui
+
+    -- Handle fade in if configured
+    if config and config.fadeInTime and config.fadeInTime > 0 then
+        sound.Volume = 0
+        local startTime = tick()
+        local connection
+        connection = RunService.Heartbeat:Connect(function()
+            local elapsed = tick() - startTime
+            if elapsed >= config.fadeInTime then
+                sound.Volume = config.volume or DEFAULT_VOLUME
+                connection:Disconnect()
+            else
+                sound.Volume = (elapsed / config.fadeInTime) * (config.volume or DEFAULT_VOLUME)
+            end
+        end)
+    end
+
+    -- Store reference and set up cleanup
+    activeSounds[sound] = true
+    sound.Ended:Connect(function()
+        cleanupSound(sound)
+    end)
+
+    -- Play sound
+    sound:Play()
+    return true, "Sound playing"
+end
+
+function SoundModule:stopAllSounds()
+    for sound in activeSounds do
+        cleanupSound(sound)
+    end
+end
+
+function SoundModule:setVolume(volume: number)
+    if type(volume) ~= "number" or volume < 0 or volume > 1 then
+        return false, "Invalid volume value"
+    end
+
+    for sound in activeSounds do
+        sound.Volume = volume
+    end
+
+    return true, "Volume updated"
+end
+
+function SoundModule:queueSound(soundId: string, config: SoundConfig?)
+    table.insert(soundQueue, {
+        soundId = soundId,
+        config = config
+    })
+end
+
+function SoundModule:playNextInQueue(): (boolean, string?)
+    if #soundQueue == 0 then
+        return false, "Queue is empty"
+    end
+
+    local nextSound = table.remove(soundQueue, 1)
+    return self:playSound(nextSound.soundId, nextSound.config)
+end
+
+return SoundModule
