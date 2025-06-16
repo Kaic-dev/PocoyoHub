@@ -1,40 +1,96 @@
 -- WebhookModule.lua
+--[[
+    WebhookModule: A module for handling Discord webhook interactions
+    Features:
+    - Create and send embeds to Discord webhooks
+    - Configurable embed creation
+    - Error handling and validation
+    - Type checking for inputs
+]]
+
 local HttpService = game:GetService("HttpService")
+
+-- Constants
+local DEFAULT_COLOR = 16777215 -- White
+local DEFAULT_USERNAME = "Default User"
+local SUCCESS_STATUS_CODE = 204
+
+-- Types
+type EmbedData = {
+    title: string?,
+    description: string?,
+    color: number?,
+    footer: {
+        text: string,
+        icon_url: string?
+    }?,
+    thumbnail: {
+        url: string
+    }?,
+    timestamp: string?
+}
+
+type WebhookData = {
+    username: string?,
+    avatar_url: string?,
+    embeds: {EmbedData}
+}
 
 local WebhookModule = {}
 
--- Function to create an embed
-function WebhookModule:CreateEmbed(title, description, color, footerText, footerIcon, thumbnailURL)
+-- Private functions
+local function validateWebhookURL(url: string): boolean
+    return type(url) == "string" and url:match("^https://discord.com/api/webhooks/")
+end
+
+local function createTimestamp(): string
+    return os.date("!%Y-%m-%dT%H:%M:%SZ")
+end
+
+-- Public functions
+function WebhookModule:CreateEmbed(config: EmbedData): EmbedData
     return {
-        ["title"] = title or "Default Title",
-        ["description"] = description or "Default Description",
-        ["color"] = color or 16777215, -- Default to white color
-        ["footer"] = footerText and {
-            ["text"] = footerText,
-            ["icon_url"] = footerIcon or ""
+        title = config.title or "Default Title",
+        description = config.description or "Default Description",
+        color = config.color or DEFAULT_COLOR,
+        footer = config.footer and {
+            text = config.footer.text,
+            icon_url = config.footer.icon_url or ""
         } or nil,
-        ["thumbnail"] = thumbnailURL and {
-            ["url"] = thumbnailURL
+        thumbnail = config.thumbnail and {
+            url = config.thumbnail.url
         } or nil,
-        ["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%SZ")
+        timestamp = createTimestamp()
     }
 end
 
--- Function to send a message to the webhook
-function WebhookModule:SendMessage(webhookURL, username, avatarURL, embed)
-    if not webhookURL then
-        warn("Webhook URL is required!")
-        return
+function WebhookModule:SendMessage(webhookURL: string, config: WebhookData): (boolean, string?)
+    -- Input validation
+    if not validateWebhookURL(webhookURL) then
+        return false, "Invalid webhook URL format"
     end
 
+    if not config.embeds or #config.embeds == 0 then
+        return false, "No embeds provided"
+    end
+
+    -- Prepare request data
     local data = {
-        ["username"] = username or "Default User",
-        ["avatar_url"] = avatarURL or "",
-        ["embeds"] = {embed}
+        username = config.username or DEFAULT_USERNAME,
+        avatar_url = config.avatar_url or "",
+        embeds = config.embeds
     }
 
-    local jsonData = HttpService:JSONEncode(data)
+    -- Encode data
+    local success, jsonData = pcall(function()
+        return HttpService:JSONEncode(data)
+    end)
 
+    if not success then
+        return false, "Failed to encode data: " .. tostring(jsonData)
+    end
+
+    -- Send request
     local success, response = pcall(function()
         return request({
             Url = webhookURL,
@@ -46,13 +102,16 @@ function WebhookModule:SendMessage(webhookURL, username, avatarURL, embed)
         })
     end)
 
-    if success and response.StatusCode == 204 then
-        print("Message sent successfully!")
-    elseif success then
-        warn("Unexpected response. Status code:", response.StatusCode)
-    else
-        warn("Failed to send message:", response and response.StatusCode or "No response")
+    -- Handle response
+    if not success then
+        return false, "Request failed: " .. tostring(response)
     end
+
+    if response.StatusCode == SUCCESS_STATUS_CODE then
+        return true, "Message sent successfully"
+    end
+
+    return false, "Unexpected response. Status code: " .. tostring(response.StatusCode)
 end
 
 return WebhookModule
